@@ -65,12 +65,43 @@ type ListItem struct {
 	Image       string `json:"image"`
 }
 
-// Speaker represents a speaker for a session.
-type Speaker struct {
-	ID    int    `json:"id"`
-	Name  string `json:"name"`
-	Title string `json:"title"`
-	Image string `json:"image"`
+// GuideBook a structure with everything we know from the guidebook
+type GuideBook struct {
+	Sessions     []GuidebookSession  `json:"sessions"`
+	Locations    map[int]string      `json:"locations"`
+	SessionLinks map[int]SessionLink `json:"session_links"`
+	Lists        map[int]CustomList  `json:"custom_lists"`
+	ListItems    map[int]ListItem    `json:"custom_list_items"`
+	Tracks       map[int]string      `json:"tracks"`
+}
+
+func loadGuidebook() (gb GuideBook, err error) {
+	gb.Sessions, err = fetchGuidebookSessions(config.GuidebookAPIKey, config.GuidebookID)
+	if err != nil {
+		return gb, fmt.Errorf("failed to load sessions from GuideBook: %w", err)
+	}
+
+	gb.Locations, err = fetchGuidebookLocations(config.GuidebookAPIKey, config.GuidebookID)
+	if err != nil {
+		return gb, fmt.Errorf("failed to load session locations from GuideBook: %w", err)
+	}
+
+	gb.Tracks, err = fetchGuidebookTracks(config.GuidebookAPIKey, config.GuidebookID)
+	if err != nil {
+		return gb, fmt.Errorf("failed to load schedule tracks from GuideBook: %w", err)
+	}
+
+	gb.SessionLinks, err = fetchSessionLinks(config.GuidebookAPIKey, config.GuidebookID)
+	if err != nil {
+		return gb, fmt.Errorf("failed to load session links from GuideBook: %w", err)
+	}
+
+	gb.Lists, gb.ListItems, err = fetchGuidebookLists(config.GuidebookAPIKey, config.GuidebookID)
+	if err != nil {
+		return gb, fmt.Errorf("failed to load lists and listitems from GuideBook: %w", err)
+	}
+
+	return gb, nil
 }
 
 func multiFetch(apiKey, guideID, fetchWhat string) ([]byte, error) {
@@ -146,6 +177,25 @@ func fetchGuidebookLocations(apiKey, guideID string) (map[int]string, error) {
 	}
 
 	return locationMap, nil
+}
+
+// fetchGuidebookTracks fetches all schedule tracks from a specific guide in Guidebook.
+func fetchGuidebookTracks(apiKey, guideID string) (map[int]string, error) {
+	allTracks := make([]ScheduleTrack, 0)
+	response, err := multiFetch(apiKey, guideID, "schedule-tracks")
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch results: %w", err)
+	}
+	if err := json.NewDecoder(bytes.NewReader(response)).Decode(&allTracks); err != nil {
+		fmt.Println(string(response))
+		return nil, fmt.Errorf("failed to decode guidebook response: %w", err)
+	}
+	trackMap := make(map[int]string)
+	for _, v := range allTracks {
+		trackMap[v.ID] = v.Name
+	}
+
+	return trackMap, nil
 }
 
 func fetchAllListItems(apiKey, guideID string) (map[int]ListItem, error) {

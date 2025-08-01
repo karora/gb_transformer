@@ -1,6 +1,9 @@
 package main
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 type WatsonSession struct {
 	ID              int      `json:"id"`
@@ -39,12 +42,29 @@ type Person struct {
 
 const WatsonTimeFormat string = "2006-01-02T15:04:05.999Z07:00"
 
-func WatsonFromGuidebook(sessions []GuidebookSession, locations map[int]string,
-	lists map[int]CustomList, listItems map[int]ListItem, links map[int]SessionLink) ([]WatsonSession, error) {
+func makeTag(category, label string) Tag {
+	return Tag{
+		Label: label,
+		// Probably really want to just regexp.ReplaceAll, if we need more than this...
+		Value:    category + "_" + strings.ReplaceAll(strings.ReplaceAll(label, " ", ""), "&", ""),
+		Category: category,
+	}
+}
 
-	watson := make([]WatsonSession, 0, len(sessions))
+func BuildSessionTags(ws WatsonSession, gs GuidebookSession, gb GuideBook) []Tag {
+	// This will at worst return an empty set - it will not return an error
+	tags := make([]Tag, 0)
+	for _, st := range gs.ScheduleTracks {
+		tags = append(tags, makeTag("track", gb.Tracks[st]))
+	}
+	return tags
+}
 
-	for _, v := range sessions {
+func WatsonFromGuidebook(gb GuideBook) ([]WatsonSession, error) {
+
+	watson := make([]WatsonSession, 0, len(gb.Sessions))
+
+	for _, v := range gb.Sessions {
 		session := WatsonSession{
 			ID:          v.ID,
 			Name:        v.Name,
@@ -54,7 +74,7 @@ func WatsonFromGuidebook(sessions []GuidebookSession, locations map[int]string,
 			Links:       Links{},
 		}
 		for _, w := range v.Locations {
-			session.Locations = append(session.Locations, locations[w])
+			session.Locations = append(session.Locations, gb.Locations[w])
 		}
 		start, err := time.Parse(GuidebookTimeFormat, v.StartTime)
 		if err != nil {
@@ -68,18 +88,20 @@ func WatsonFromGuidebook(sessions []GuidebookSession, locations map[int]string,
 		session.DurationMinutes = int(finish.Sub(start) / time.Minute)
 
 		// People in he session are in CustomLinks :-/
-		personLinks, exists := links[session.ID]
+		personLinks, exists := gb.SessionLinks[session.ID]
 		if exists {
 			people := make([]Person, 0, len(personLinks.TargetIDs))
 			for pl := range personLinks.TargetIDs {
 				person := Person{
 					ID:   pl,
-					Name: listItems[pl].Name,
+					Name: gb.ListItems[pl].Name,
 				}
 				people = append(people, person)
 			}
 			session.People = people
 		}
+
+		session.Tags = BuildSessionTags(session, v, gb)
 
 		watson = append(watson, session)
 	}

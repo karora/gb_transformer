@@ -13,7 +13,7 @@ type conf struct {
 	OutputPath      string
 	GuidebookAPIKey string
 	GuidebookID     string
-	DumpLists       bool
+	Dump            bool
 	Debug           bool
 	TimeToGo        chan (bool)
 }
@@ -40,7 +40,7 @@ func init() {
 	config.GuidebookAPIKey = getEnvWithDefault("GB_API_KEY", "not set")
 	config.GuidebookID = getEnvWithDefault("GB_ID", "not set")
 
-	flag.BoolVar(&config.DumpLists, "customlist", false, "dumps the list of custom lists as JSON")
+	flag.BoolVar(&config.Dump, "dump", false, "dumps the full contents we've loaded from GuideBook as JSON")
 	flag.Parse()
 }
 
@@ -57,34 +57,18 @@ func main() {
 	// ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	// defer cancel()
 
-	links, err := fetchSessionLinks(config.GuidebookAPIKey, config.GuidebookID)
+	guidebook, err := loadGuidebook()
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	lists, listItems, err := fetchGuidebookLists(config.GuidebookAPIKey, config.GuidebookID)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	if config.DumpLists {
-		// Dumping like this gives an error in the JSON which can make it easier to find where that breakpoint is
-		DumpJSON(lists)
-		DumpJSON(listItems)
+	if config.Dump {
+		DumpJSON(guidebook)
 	} else {
-		sessions, err := fetchGuidebookSessions(config.GuidebookAPIKey, config.GuidebookID)
-		if err != nil {
-			log.Fatal(err.Error())
-		}
 
-		locations, err := fetchGuidebookLocations(config.GuidebookAPIKey, config.GuidebookID)
-		if err != nil {
-			log.Fatal(err.Error())
-		}
-
-		if config.Debug {
-			DumpJSON(sessions)
-		}
-
-		watsonSessions, err := WatsonFromGuidebook(sessions, locations, lists, listItems, links)
+		watsonSessions, err := WatsonFromGuidebook(guidebook)
 		if err != nil {
 			log.Fatal(err.Error())
 		}
