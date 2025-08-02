@@ -1,6 +1,7 @@
 package main
 
 import (
+	"regexp"
 	"strings"
 	"time"
 )
@@ -40,13 +41,16 @@ type Person struct {
 	Role string `json:"role,omitempty"`
 }
 
-const WatsonTimeFormat string = "2006-01-02T15:04:05.999Z07:00"
+const WATSON_TIME_FORMAT string = "2006-01-02T15:04:05.999Z07:00"
+const VIRTUAL_ROOM_1 = 5074259
+const VIRTUAL_ROOM_2 = 5074260
 
-func makeTag(category, label string) Tag {
+var notAlphaNumeric = regexp.MustCompile("[^a-zA-Z0-9_]")
+
+func makeTag(label, value, category string) Tag {
 	return Tag{
-		Label: label,
-		// Probably really want to just regexp.ReplaceAll, if we need more than this...
-		Value:    category + "_" + strings.ReplaceAll(strings.ReplaceAll(label, " ", ""), "&", ""),
+		Label:    label,
+		Value:    strings.ToLower(notAlphaNumeric.ReplaceAllLiteralString(strings.ReplaceAll(value, " ", "_"), "")),
 		Category: category,
 	}
 }
@@ -55,7 +59,23 @@ func BuildSessionTags(ws WatsonSession, gs GuidebookSession, gb GuideBook) []Tag
 	// This will at worst return an empty set - it will not return an error
 	tags := make([]Tag, 0)
 	for _, st := range gs.ScheduleTracks {
-		tags = append(tags, makeTag("track", gb.Tracks[st]))
+		tags = append(tags, makeTag(gb.Tracks[st], "track_"+gb.Tracks[st], "Track"))
+	}
+	virtual := false
+	in_person := false
+	for _, loc := range gs.Locations {
+		if loc == VIRTUAL_ROOM_1 || loc == VIRTUAL_ROOM_2 {
+			virtual = true
+		} else {
+			in_person = true
+		}
+	}
+	if virtual && in_person {
+		tags = append(tags, makeTag("In Person and Virtual Session", "session_in_person", "Environment"))
+	} else if virtual {
+		tags = append(tags, makeTag("Virtual Session", "session_virtual", "Environment"))
+	} else {
+		tags = append(tags, makeTag("In Person Session", "session_in_person", "Environment"))
 	}
 	return tags
 }
@@ -84,7 +104,7 @@ func WatsonFromGuidebook(gb GuideBook) ([]WatsonSession, error) {
 		if err != nil {
 			return watson, err
 		}
-		session.StartTime = start.Format(WatsonTimeFormat)
+		session.StartTime = start.Format(WATSON_TIME_FORMAT)
 		session.DurationMinutes = int(finish.Sub(start) / time.Minute)
 
 		// People in he session are in CustomLinks :-/
