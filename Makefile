@@ -30,14 +30,15 @@ clean:
 
 release: production
 
-# .PHONY: run
-# run: docker
-# 	./update-container.sh
+.PHONY: run
+run: xformer
+	mv schedule.json sched-old.json
+	time runxformer.sh >schedule.json
 
-# .PHONY: rerun
-# rerun: docker
-# 	./update-container.sh
-# 	docker logs -f xformer-latest 2>&1 | tr -d '\\'
+.PHONY: dump
+dump: xformer
+	mv guidebook.json guide-old.json
+	time runxformer.sh -dump >guidebook.json
 
 
 # .PHONY: production
