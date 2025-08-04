@@ -11,7 +11,7 @@ type WatsonSession struct {
 	Locations       []string `json:"loc"`
 	Name            string   `json:"title"`
 	Description     string   `json:"desc"`
-	StartTime       string   `json:"datetime"`
+	StartTime       string   `json:"dateTime"`
 	DurationMinutes int      `json:"mins"`
 	Format          string   `json:"format"`
 	Tags            []Tag    `json:"tags"`
