@@ -96,11 +96,11 @@ func WatsonFromGuidebook(gb GuideBook) ([]WatsonSession, error) {
 		for _, w := range v.Locations {
 			session.Locations = append(session.Locations, gb.Locations[w])
 		}
-		start, err := time.Parse(GuidebookTimeFormat, v.StartTime)
+		start, err := time.Parse(GUIDEBOOK_TIME_FORMAT, v.StartTime)
 		if err != nil {
 			return watson, err
 		}
-		finish, err := time.Parse(GuidebookTimeFormat, v.EndTime)
+		finish, err := time.Parse(GUIDEBOOK_TIME_FORMAT, v.EndTime)
 		if err != nil {
 			return watson, err
 		}

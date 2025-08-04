@@ -35,7 +35,9 @@ type GuidebookSession struct {
 }
 
 // 2017-08-31T20:18:28.038556+0000
-const GuidebookTimeFormat string = "2006-01-02T15:04:05.999999+0000"
+const GUIDEBOOK_TIME_FORMAT string = "2006-01-02T15:04:05.999999+0000"
+
+const GUESTS_OF_HONOR_ID = 1153959
 
 // GuidebookLocation represents a location for a session.
 type GuidebookLocation struct {
@@ -63,6 +65,27 @@ type ListItem struct {
 	Descripion  string `json:"description_html"`
 	CustomLists []int  `json:"custom_lists"`
 	Image       string `json:"image"`
+}
+
+type CatLink struct {
+	ID         int     `json:"id"`
+	Name       string  `json:"title"`
+	SourceType string  `json:"source_content_type"`
+	TargetType string  `json:"target_content_type"`
+	SourceID   int     `json:"source_object_id"`
+	TargetID   int     `json:"target_object_id"`
+	Rank       float64 `json:"rank"`
+}
+
+type LinkCategory struct {
+	ID    int       `json:"id"`
+	Name  string    `json:"name"`
+	Links []CatLink `json:"links,omitempty"`
+}
+
+type SessionLink struct {
+	SessionID int            `json:"id"`
+	TargetIDs map[int]string `json:"linked_items"`
 }
 
 // GuideBook a structure with everything we know from the guidebook
@@ -248,27 +271,6 @@ func fetchGuidebookLists(apiKey, guideID string) (map[int]CustomList, map[int]Li
 	return listsMap, listItems, nil
 }
 
-type CatLink struct {
-	ID         int     `json:"id"`
-	Name       string  `json:"title"`
-	SourceType string  `json:"source_content_type"`
-	TargetType string  `json:"target_content_type"`
-	SourceID   int     `json:"source_object_id"`
-	TargetID   int     `json:"target_object_id"`
-	Rank       float64 `json:"rank"`
-}
-
-type LinkCategory struct {
-	ID    int       `json:"id"`
-	Name  string    `json:"name"`
-	Links []CatLink `json:"links,omitempty"`
-}
-
-type SessionLink struct {
-	SessionID int             `json:"id"`
-	TargetIDs map[int]float64 `json:"linked_items"`
-}
-
 // fetchSessionLinks(apiKey, gu)
 func fetchSessionLinks(apiKey, guideID string) (map[int]SessionLink, error) {
 	linkCats := make([]LinkCategory, 0)
@@ -289,10 +291,10 @@ func fetchSessionLinks(apiKey, guideID string) (map[int]SessionLink, error) {
 				if !exists {
 					list = SessionLink{
 						SessionID: w.SourceID,
-						TargetIDs: make(map[int]float64, 0),
+						TargetIDs: make(map[int]string, 0),
 					}
 				}
-				list.TargetIDs[w.TargetID] = w.Rank
+				list.TargetIDs[w.TargetID] = w.Name
 				listsMap[w.SourceID] = list
 			}
 		}
