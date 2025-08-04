@@ -90,12 +90,13 @@ type SessionLink struct {
 
 // GuideBook a structure with everything we know from the guidebook
 type GuideBook struct {
-	Sessions     []GuidebookSession  `json:"sessions"`
-	Locations    map[int]string      `json:"locations"`
-	SessionLinks map[int]SessionLink `json:"session_links"`
-	Lists        map[int]CustomList  `json:"custom_lists"`
-	ListItems    map[int]ListItem    `json:"custom_list_items"`
-	Tracks       map[int]string      `json:"tracks"`
+	Sessions      []GuidebookSession  `json:"sessions"`
+	Locations     map[int]string      `json:"locations"`
+	SessionLinks  map[int]SessionLink `json:"session_links"`
+	Lists         map[int]CustomList  `json:"custom_lists"`
+	ListItems     map[int]ListItem    `json:"custom_list_items"`
+	Tracks        map[int]string      `json:"tracks"`
+	GuestsOfHonor map[int]string      `json:"guests_of_honor"`
 }
 
 func loadGuidebook() (gb GuideBook, err error) {
@@ -122,6 +123,11 @@ func loadGuidebook() (gb GuideBook, err error) {
 	gb.Lists, gb.ListItems, err = fetchGuidebookLists(config.GuidebookAPIKey, config.GuidebookID)
 	if err != nil {
 		return gb, fmt.Errorf("failed to load lists and listitems from GuideBook: %w", err)
+	}
+
+	gb.GuestsOfHonor = make(map[int]string)
+	for _, goh := range gb.Lists[GUESTS_OF_HONOR_ID].Items {
+		gb.GuestsOfHonor[goh] = gb.ListItems[goh].Name
 	}
 
 	return gb, nil

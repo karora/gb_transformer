@@ -116,6 +116,10 @@ func WatsonFromGuidebook(gb GuideBook) ([]WatsonSession, error) {
 					ID:   pl,
 					Name: gb.ListItems[pl].Name,
 				}
+				_, exists := gb.GuestsOfHonor[pl]
+				if exists {
+					person.Role = "Guest of Honor"
+				}
 				people = append(people, person)
 			}
 			session.People = people
