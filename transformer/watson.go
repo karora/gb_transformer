@@ -96,6 +96,9 @@ func WatsonFromGuidebook(gb GuideBook) ([]WatsonSession, error) {
 		for _, w := range v.Locations {
 			session.Locations = append(session.Locations, gb.Locations[w])
 		}
+		if len(session.Locations) == 0 {
+			session.Locations = append(session.Locations, "Discord") // All Hail Eris!
+		}
 		start, err := time.Parse(GUIDEBOOK_TIME_FORMAT, v.StartTime)
 		if err != nil {
 			return watson, err
