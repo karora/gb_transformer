@@ -57,7 +57,9 @@ func main() {
 	// ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	// defer cancel()
 
+	log.Println("Started fetching from Guidebook")
 	guidebook, err := loadGuidebook()
+	log.Println("Guidebook fetch complete")
 	if err != nil {
 		log.Fatal(err.Error())
 	}

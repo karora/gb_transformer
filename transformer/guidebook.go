@@ -102,6 +102,8 @@ type GuideBook struct {
 	GuestsOfHonor map[int]string      `json:"guests_of_honor"`
 }
 
+var guideBookRequestCounter = 0
+
 func loadGuidebook() (gb GuideBook, err error) {
 	gb.Sessions, err = fetchGuidebookSessions(config.GuidebookAPIKey, config.GuidebookID)
 	if err != nil {
@@ -162,6 +164,7 @@ func multiFetch(apiKey, guideID, fetchWhat string) ([]byte, error) {
 			if resp.StatusCode == 429 {
 				retryWait, _ := strconv.Atoi(resp.Header.Get("Retry-After"))
 				if retryWait > 0 {
+					log.Printf("We got a 429 on request %d and are now waiting for %d seconds before our next request...", guideBookRequestCounter+1, retryWait)
 					time.Sleep(time.Duration(1+retryWait) * time.Second)
 					goto retryAfterWait
 				}
@@ -172,6 +175,7 @@ func multiFetch(apiKey, guideID, fetchWhat string) ([]byte, error) {
 			}
 			return nil, fmt.Errorf("guidebook API request failed with status %s: %s", resp.Status, string(bodyBytes))
 		}
+		guideBookRequestCounter++ // Only successful ones count
 
 		var response MultiResponse
 		if err := json.NewDecoder(bytes.NewReader(bodyBytes)).Decode(&response); err != nil {
@@ -182,6 +186,8 @@ func multiFetch(apiKey, guideID, fetchWhat string) ([]byte, error) {
 		allResults = append(allResults, response.Results...)
 		nextURL = response.Next
 	}
+
+	log.Printf("Fetched %s chain - %d requests so far.", fetchWhat, guideBookRequestCounter)
 
 	return json.Marshal(allResults)
 }
