@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"strconv"
+	"time"
 )
 
 // MultiResponse represents the top-level structure of the Guidebook API response for anything that returns a series of results.
@@ -140,6 +143,7 @@ func multiFetch(apiKey, guideID, fetchWhat string) ([]byte, error) {
 	nextURL := fmt.Sprintf("https://builder.guidebook.com/open-api/v1.1/%s/?guide=%s", fetchWhat, guideID)
 
 	for nextURL != "" {
+	retryAfterWait:
 		req, err := http.NewRequest("GET", nextURL, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create request: %w", err)
@@ -155,6 +159,17 @@ func multiFetch(apiKey, guideID, fetchWhat string) ([]byte, error) {
 		resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
+			if resp.StatusCode == 429 {
+				retryWait, _ := strconv.Atoi(resp.Header.Get("Retry-After"))
+				if retryWait > 0 {
+					time.Sleep(time.Duration(1+retryWait) * time.Second)
+					goto retryAfterWait
+				}
+				log.Println("Well, we got rate limited.  Here's the headers...")
+				for key, value := range resp.Header {
+					log.Printf("%s: %s", key, value)
+				}
+			}
 			return nil, fmt.Errorf("guidebook API request failed with status %s: %s", resp.Status, string(bodyBytes))
 		}
 
