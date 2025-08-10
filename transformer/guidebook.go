@@ -152,7 +152,7 @@ func loadGuidebook() (gb GuideBook, err error) {
 		return gb, fmt.Errorf("failed to load lists and listitems from GuideBook: %w", err)
 	}
 
-	gb.WebViews, err = fetchWebViews(config)
+	// gb.WebViews, err = fetchWebViews(config)
 
 	gb.GuestsOfHonor = make(map[int]string)
 	for _, goh := range gb.Lists[GUESTS_OF_HONOR_ID].Items {
