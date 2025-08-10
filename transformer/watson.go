@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -172,5 +173,10 @@ func WatsonFromGuidebook(gb GuideBook) ([]WatsonSession, error) {
 
 		watson = append(watson, session)
 	}
+
+	sort.Slice(watson, func(i, j int) bool {
+		return watson[i].StartTime < watson[j].StartTime
+	})
+
 	return watson, nil
 }
