@@ -171,6 +171,10 @@ func WatsonFromGuidebook(gb GuideBook) ([]WatsonSession, error) {
 		}
 		session.BuildSessionLinks(gs, gb)
 
+		sort.Slice(session.People, func(i, j int) bool {
+			return session.People[i].ID < session.People[j].ID
+		})
+
 		watson = append(watson, session)
 	}
 
