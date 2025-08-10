@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"log"
 	"regexp"
 	"strings"
 	"time"
@@ -17,6 +19,8 @@ type WatsonSession struct {
 	Tags            []Tag    `json:"tags"`
 	Links           Links    `json:"links"`
 	People          []Person `json:"people,omitempty"`
+	in_person       bool     `json:"-"`
+	virtual         bool     `json:"-"`
 }
 
 type Tag struct {
@@ -59,47 +63,55 @@ func makeTag(label, value, category string) Tag {
 	}
 }
 
-func BuildSessionTags(ws WatsonSession, gs GuidebookSession, gb GuideBook) []Tag {
+// BuildSessionTags builds tags for this session
+func (ws *WatsonSession) BuildSessionTags(gs GuidebookSession, gb GuideBook) {
 	// This will at worst return an empty set - it will not return an error
-	tags := make([]Tag, 0)
+	ws.Tags = make([]Tag, 0)
+
 	for _, st := range gs.ScheduleTracks {
-		tags = append(tags, makeTag(gb.Tracks[st], "track_"+gb.Tracks[st], "Track"))
+		ws.Tags = append(ws.Tags, makeTag(gb.Tracks[st], "track_"+gb.Tracks[st], "Track"))
+		if gb.Tracks[st] == "virtual" {
+			ws.virtual = true
+		}
 	}
-	virtual := false
-	in_person := false
+
 	for _, loc := range gs.Locations {
 		if loc == VIRTUAL_ROOM_1 || loc == VIRTUAL_ROOM_2 {
-			virtual = true
+			ws.virtual = true
 		} else {
-			in_person = true
+			ws.in_person = true
 		}
 	}
-	if virtual && in_person {
-		tags = append(tags, makeTag("In Person and Virtual Session", "session_in_person", "Environment"))
-	} else if virtual {
-		tags = append(tags, makeTag("Virtual Session", "session_virtual", "Environment"))
-	} else {
-		tags = append(tags, makeTag("In Person Session", "session_in_person", "Environment"))
+	if ws.in_person {
+		ws.Tags = append(ws.Tags, makeTag("In Person Session", "session_in_person", "Environment"))
 	}
-	return tags
+	if ws.virtual {
+		ws.Tags = append(ws.Tags, makeTag("Virtual Session", "session_virtual", "Environment"))
+	}
 }
 
-func BuildSessionLinks(gs GuidebookSession, gb GuideBook) (l Links) {
-	sessionLinks, exists := gb.SessionLinks[gs.ID]
-	if !exists {
-		return
+// BuildSessionLinks builds the "Links" structure for this session
+func (ws *WatsonSession) BuildSessionLinks(gs GuidebookSession, gb GuideBook) {
+	if ws.virtual {
+		ws.Links.Session = fmt.Sprintf("https://virtual.seattlein2025.org/deep-link/session?item_id=%d", ws.ID)
 	}
-	for _, cl := range sessionLinks.TargetIDs {
-		switch cl.TargetType {
-		case GB_TARGET_TYPE_STREAM:
-			if strings.HasPrefix(gb.WebViews[cl.TargetID].URL, "https://virtual.seattlein2025.org") {
-				l.Session = gb.WebViews[cl.TargetID].URL
-			}
-		}
-	}
-	return
+	ws.Links.Chat = fmt.Sprintf("https://virtual.seattlein2025.org/deep-link/chat?item_id=%d", ws.ID)
+
+	// sessionLinks, exists := gb.SessionLinks[gs.ID]
+	// if !exists {
+	// 	return
+	// }
+	// for _, cl := range sessionLinks.TargetIDs {
+	// 	switch cl.TargetType {
+	// 	case GB_TARGET_TYPE_STREAM:
+	// 		if strings.HasPrefix(gb.WebViews[cl.TargetID].URL, "https://virtual.seattlein2025.org") {
+	// 			ws.Links.Session = gb.WebViews[cl.TargetID].URL
+	// 		}
+	// 	}
+	// }
 }
 
+// WatsonFromGuidebook converts everything from the Guidebook structure into an array of WatsonSession.
 func WatsonFromGuidebook(gb GuideBook) ([]WatsonSession, error) {
 
 	watson := make([]WatsonSession, 0, len(gb.Sessions))
@@ -151,8 +163,12 @@ func WatsonFromGuidebook(gb GuideBook) ([]WatsonSession, error) {
 			session.People = people
 		}
 
-		session.Tags = BuildSessionTags(session, gs, gb)
-		session.Links = BuildSessionLinks(gs, gb)
+		session.BuildSessionTags(gs, gb)
+		if !(session.in_person || session.virtual) {
+			log.Printf("Somehow we have a session (%d, %s) which is neither virtual nor in person: assuming in person", session.ID, session.Name)
+			session.in_person = true
+		}
+		session.BuildSessionLinks(gs, gb)
 
 		watson = append(watson, session)
 	}
