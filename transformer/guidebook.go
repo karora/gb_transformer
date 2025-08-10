@@ -78,57 +78,81 @@ type CatLink struct {
 	SourceID   int     `json:"source_object_id"`
 	TargetID   int     `json:"target_object_id"`
 	Rank       float64 `json:"rank"`
+	CategoryID int     `json:"category"`
+	Category   any     `json:"category_detail"`
 }
 
-type LinkCategory struct {
+type ListCategory struct {
 	ID    int       `json:"id"`
 	Name  string    `json:"name"`
 	Links []CatLink `json:"links,omitempty"`
 }
 
 type SessionLink struct {
-	SessionID int            `json:"id"`
-	TargetIDs map[int]string `json:"linked_items"`
+	TargetType string `json:"target_content_type"`
+	TargetID   int    `json:"target_object_id"`
+}
+
+const GB_TARGET_TYPE_LISTITEM = "custom_list.customlistitem"
+const GB_TARGET_TYPE_WEBVIEW = "uri_resource.webview"
+const GB_TARGET_TYPE_PERSON = "custom_list.customlistitem"
+const GB_TARGET_TYPE_STREAM = "uri_resource.webview"
+
+type SessionList struct {
+	SessionID int                 `json:"id"`
+	TargetIDs map[int]SessionLink `json:"linked_items"`
+}
+
+type WebView struct {
+	ID       int    `json:"id"`
+	Name     string `json:"name"`
+	Type     string `json:"webview_type"`
+	URL      string `json:"url"`
+	HtmlFile string `json:"html_file"`
 }
 
 // GuideBook a structure with everything we know from the guidebook
 type GuideBook struct {
 	Sessions      []GuidebookSession  `json:"sessions"`
 	Locations     map[int]string      `json:"locations"`
-	SessionLinks  map[int]SessionLink `json:"session_links"`
+	SessionLinks  map[int]SessionList `json:"session_links"`
+	OtherLinks    map[int][]CatLink   `json:"other_links"`
 	Lists         map[int]CustomList  `json:"custom_lists"`
 	ListItems     map[int]ListItem    `json:"custom_list_items"`
 	Tracks        map[int]string      `json:"tracks"`
 	GuestsOfHonor map[int]string      `json:"guests_of_honor"`
+	WebViews      map[int]WebView     `json:"webviews"`
 }
 
 var guideBookRequestCounter = 0
 
 func loadGuidebook() (gb GuideBook, err error) {
-	gb.Sessions, err = fetchGuidebookSessions(config.GuidebookAPIKey, config.GuidebookID)
+	gb.Sessions, err = fetchGuidebookSessions(config)
 	if err != nil {
 		return gb, fmt.Errorf("failed to load sessions from GuideBook: %w", err)
 	}
 
-	gb.Locations, err = fetchGuidebookLocations(config.GuidebookAPIKey, config.GuidebookID)
+	gb.Locations, err = fetchGuidebookLocations(config)
 	if err != nil {
 		return gb, fmt.Errorf("failed to load session locations from GuideBook: %w", err)
 	}
 
-	gb.Tracks, err = fetchGuidebookTracks(config.GuidebookAPIKey, config.GuidebookID)
+	gb.Tracks, err = fetchGuidebookTracks(config)
 	if err != nil {
 		return gb, fmt.Errorf("failed to load schedule tracks from GuideBook: %w", err)
 	}
 
-	gb.SessionLinks, err = fetchSessionLinks(config.GuidebookAPIKey, config.GuidebookID)
+	gb.SessionLinks, gb.OtherLinks, err = fetchSessionLists(config)
 	if err != nil {
 		return gb, fmt.Errorf("failed to load session links from GuideBook: %w", err)
 	}
 
-	gb.Lists, gb.ListItems, err = fetchGuidebookLists(config.GuidebookAPIKey, config.GuidebookID)
+	gb.Lists, gb.ListItems, err = fetchGuidebookLists(config)
 	if err != nil {
 		return gb, fmt.Errorf("failed to load lists and listitems from GuideBook: %w", err)
 	}
+
+	gb.WebViews, err = fetchWebViews(config)
 
 	gb.GuestsOfHonor = make(map[int]string)
 	for _, goh := range gb.Lists[GUESTS_OF_HONOR_ID].Items {
@@ -138,24 +162,24 @@ func loadGuidebook() (gb GuideBook, err error) {
 	return gb, nil
 }
 
-func multiFetch(apiKey, guideID, fetchWhat string) ([]byte, error) {
+func multiFetch(c conf, fetchWhat string) ([]byte, error) {
 	var allResults []any
 	client := &http.Client{}
 
-	nextURL := fmt.Sprintf("https://builder.guidebook.com/open-api/v1.1/%s/?guide=%s", fetchWhat, guideID)
+	nextURL := fmt.Sprintf("https://builder.guidebook.com/open-api/v1.1/%s/?guide=%s", fetchWhat, c.GuidebookID)
 
 	for nextURL != "" {
 	retryAfterWait:
 		req, err := http.NewRequest("GET", nextURL, nil)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create request: %w", err)
+			return nil, fmt.Errorf("failed to create request for %s: %w", fetchWhat, err)
 		}
 
-		req.Header.Set("Authorization", "JWT "+apiKey)
+		req.Header.Set("Authorization", "JWT "+c.GuidebookAPIKey)
 
 		resp, err := client.Do(req)
 		if err != nil {
-			return nil, fmt.Errorf("failed to execute request: %w", err)
+			return nil, fmt.Errorf("failed to execute request for %s: %w", fetchWhat, err)
 		}
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
@@ -173,7 +197,7 @@ func multiFetch(apiKey, guideID, fetchWhat string) ([]byte, error) {
 					log.Printf("%s: %s", key, value)
 				}
 			}
-			return nil, fmt.Errorf("guidebook API request failed with status %s: %s", resp.Status, string(bodyBytes))
+			return nil, fmt.Errorf("guidebook API request for %s failed with status %s: %s", fetchWhat, resp.Status, string(bodyBytes))
 		}
 		guideBookRequestCounter++ // Only successful ones count
 
@@ -195,10 +219,10 @@ func multiFetch(apiKey, guideID, fetchWhat string) ([]byte, error) {
 // fetchGuidebookSessions fetches all sessions from a specific guide in Guidebook.
 // It requires an API key and the ID of the guide.
 // It handles pagination automatically to retrieve all session records.
-func fetchGuidebookSessions(apiKey, guideID string) ([]GuidebookSession, error) {
+func fetchGuidebookSessions(c conf) ([]GuidebookSession, error) {
 	var allSessions []GuidebookSession
 
-	response, err := multiFetch(apiKey, guideID, "sessions")
+	response, err := multiFetch(c, "sessions")
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch results: %w", err)
 	}
@@ -211,9 +235,9 @@ func fetchGuidebookSessions(apiKey, guideID string) ([]GuidebookSession, error) 
 }
 
 // fetchGuidebookLocations fetches all locations from a specific guide in Guidebook.
-func fetchGuidebookLocations(apiKey, guideID string) (map[int]string, error) {
+func fetchGuidebookLocations(c conf) (map[int]string, error) {
 	allLocations := make([]GuidebookLocation, 0)
-	response, err := multiFetch(apiKey, guideID, "locations")
+	response, err := multiFetch(c, "locations")
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch results: %w", err)
 	}
@@ -230,9 +254,9 @@ func fetchGuidebookLocations(apiKey, guideID string) (map[int]string, error) {
 }
 
 // fetchGuidebookTracks fetches all schedule tracks from a specific guide in Guidebook.
-func fetchGuidebookTracks(apiKey, guideID string) (map[int]string, error) {
+func fetchGuidebookTracks(c conf) (map[int]string, error) {
 	allTracks := make([]ScheduleTrack, 0)
-	response, err := multiFetch(apiKey, guideID, "schedule-tracks")
+	response, err := multiFetch(c, "schedule-tracks")
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch results: %w", err)
 	}
@@ -248,9 +272,9 @@ func fetchGuidebookTracks(apiKey, guideID string) (map[int]string, error) {
 	return trackMap, nil
 }
 
-func fetchAllListItems(apiKey, guideID string) (map[int]ListItem, error) {
+func fetchAllListItems(c conf) (map[int]ListItem, error) {
 	allItems := make([]ListItem, 0, 1000)
-	response, err := multiFetch(apiKey, guideID, "custom-list-items")
+	response, err := multiFetch(c, "custom-list-items")
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch results: %w", err)
 	}
@@ -267,9 +291,9 @@ func fetchAllListItems(apiKey, guideID string) (map[int]ListItem, error) {
 }
 
 // fetchGuidebookLists fetches all custom-lists from a specific guide in Guidebook.
-func fetchGuidebookLists(apiKey, guideID string) (map[int]CustomList, map[int]ListItem, error) {
+func fetchGuidebookLists(c conf) (map[int]CustomList, map[int]ListItem, error) {
 	customLists := make([]CustomList, 0)
-	response, err := multiFetch(apiKey, guideID, "custom-lists")
+	response, err := multiFetch(c, "custom-lists")
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch results: %w", err)
 	}
@@ -283,7 +307,7 @@ func fetchGuidebookLists(apiKey, guideID string) (map[int]CustomList, map[int]Li
 		listsMap[v.ID] = v
 	}
 
-	listItems, err := fetchAllListItems(apiKey, guideID)
+	listItems, err := fetchAllListItems(c)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch all custom list items: %w", err)
 	}
@@ -298,33 +322,64 @@ func fetchGuidebookLists(apiKey, guideID string) (map[int]CustomList, map[int]Li
 	return listsMap, listItems, nil
 }
 
-// fetchSessionLinks(apiKey, gu)
-func fetchSessionLinks(apiKey, guideID string) (map[int]SessionLink, error) {
-	linkCats := make([]LinkCategory, 0)
-	response, err := multiFetch(apiKey, guideID, "link-categories")
+// fetchSessionLists fetches the customlists related to a session
+func fetchSessionLists(c conf) (map[int]SessionList, map[int][]CatLink, error) {
+	listCats := make([]ListCategory, 0)
+	response, err := multiFetch(c, "link-categories")
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch results: %w", err)
+		return nil, nil, fmt.Errorf("failed to fetch results: %w", err)
 	}
-	if err := json.NewDecoder(bytes.NewReader(response)).Decode(&linkCats); err != nil {
+	if err := json.NewDecoder(bytes.NewReader(response)).Decode(&listCats); err != nil {
+		fmt.Println(string(response))
+		return nil, nil, fmt.Errorf("failed to decode guidebook response: %w", err)
+	}
+
+	otherListsMap := make(map[int][]CatLink)
+	sessionListsMap := make(map[int]SessionList)
+	for _, v := range listCats {
+		for _, w := range v.Links {
+			if w.SourceType == "schedule.session" {
+				list, exists := sessionListsMap[w.SourceID]
+				if !exists {
+					list = SessionList{
+						SessionID: w.SourceID,
+						TargetIDs: make(map[int]SessionLink, 0),
+					}
+				}
+				list.TargetIDs[w.TargetID] = SessionLink{
+					TargetType: w.TargetType,
+					TargetID:   w.TargetID,
+				}
+				sessionListsMap[w.SourceID] = list
+			} else {
+				list, exists := otherListsMap[w.SourceID]
+				if !exists {
+					list = make([]CatLink, 0)
+				}
+				list = append(list, w)
+				otherListsMap[w.SourceID] = list
+			}
+		}
+	}
+	return sessionListsMap, otherListsMap, nil
+}
+
+// fetchWebViews fetches the webviews related to a session
+func fetchWebViews(c conf) (map[int]WebView, error) {
+	response, err := multiFetch(c, "webviews")
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch webviews results: %w", err)
+	}
+
+	webViews := make([]WebView, 0)
+	if err := json.NewDecoder(bytes.NewReader(response)).Decode(&webViews); err != nil {
 		fmt.Println(string(response))
 		return nil, fmt.Errorf("failed to decode guidebook response: %w", err)
 	}
 
-	listsMap := make(map[int]SessionLink)
-	for _, v := range linkCats {
-		for _, w := range v.Links {
-			if w.SourceType == "schedule.session" && w.TargetType == "custom_list.customlistitem" {
-				list, exists := listsMap[w.SourceID]
-				if !exists {
-					list = SessionLink{
-						SessionID: w.SourceID,
-						TargetIDs: make(map[int]string, 0),
-					}
-				}
-				list.TargetIDs[w.TargetID] = w.Name
-				listsMap[w.SourceID] = list
-			}
-		}
+	viewsMap := make(map[int]WebView)
+	for _, wv := range webViews {
+		viewsMap[wv.ID] = wv
 	}
-	return listsMap, nil
+	return viewsMap, nil
 }

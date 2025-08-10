@@ -25,8 +25,12 @@ type Tag struct {
 	Category string `json:"category"`
 }
 
+// Links related to the session
 type Links struct {
-	Label string `json:"label,omitempty"`
+	Session string `json:"session,omitempty"`
+	Stage   string `json:"stage,omitempty"`
+	Replay  string `json:"replay,omitempty"`
+	Chat    string `json:"chat,omitempty"`
 }
 
 type Link struct {
@@ -80,46 +84,65 @@ func BuildSessionTags(ws WatsonSession, gs GuidebookSession, gb GuideBook) []Tag
 	return tags
 }
 
+func BuildSessionLinks(gs GuidebookSession, gb GuideBook) (l Links) {
+	sessionLinks, exists := gb.SessionLinks[gs.ID]
+	if !exists {
+		return
+	}
+	for _, cl := range sessionLinks.TargetIDs {
+		switch cl.TargetType {
+		case GB_TARGET_TYPE_STREAM:
+			if strings.HasPrefix(gb.WebViews[cl.TargetID].URL, "https://virtual.seattlein2025.org") {
+				l.Session = gb.WebViews[cl.TargetID].URL
+			}
+		}
+	}
+	return
+}
+
 func WatsonFromGuidebook(gb GuideBook) ([]WatsonSession, error) {
 
 	watson := make([]WatsonSession, 0, len(gb.Sessions))
 
-	for _, v := range gb.Sessions {
+	for _, gs := range gb.Sessions {
 		session := WatsonSession{
-			ID:          v.ID,
-			Name:        v.Name,
-			Description: v.Description,
-			StartTime:   v.StartTime,
+			ID:          gs.ID,
+			Name:        gs.Name,
+			Description: gs.Description,
+			StartTime:   gs.StartTime,
 			Tags:        make([]Tag, 0),
 			Links:       Links{},
 		}
-		for _, w := range v.Locations {
-			session.Locations = append(session.Locations, gb.Locations[w])
+		for _, loc := range gs.Locations {
+			session.Locations = append(session.Locations, gb.Locations[loc])
 		}
 		if len(session.Locations) == 0 {
 			session.Locations = append(session.Locations, "Discord") // All Hail Eris!
 		}
-		start, err := time.Parse(GUIDEBOOK_TIME_FORMAT, v.StartTime)
+		start, err := time.Parse(GUIDEBOOK_TIME_FORMAT, gs.StartTime)
 		if err != nil {
 			return watson, err
 		}
-		finish, err := time.Parse(GUIDEBOOK_TIME_FORMAT, v.EndTime)
+		finish, err := time.Parse(GUIDEBOOK_TIME_FORMAT, gs.EndTime)
 		if err != nil {
 			return watson, err
 		}
 		session.StartTime = start.Format(WATSON_TIME_FORMAT)
 		session.DurationMinutes = int(finish.Sub(start) / time.Minute)
 
-		// People in he session are in CustomLinks :-/
+		// People in the session are in CustomLinks :-/
 		personLinks, exists := gb.SessionLinks[session.ID]
 		if exists {
 			people := make([]Person, 0, len(personLinks.TargetIDs))
-			for pl := range personLinks.TargetIDs {
-				person := Person{
-					ID:   pl,
-					Name: gb.ListItems[pl].Name,
+			for _, pl := range personLinks.TargetIDs {
+				if pl.TargetType != GB_TARGET_TYPE_PERSON {
+					continue
 				}
-				_, exists := gb.GuestsOfHonor[pl]
+				person := Person{
+					ID:   pl.TargetID,
+					Name: gb.ListItems[pl.TargetID].Name,
+				}
+				_, exists := gb.GuestsOfHonor[pl.TargetID]
 				if exists {
 					person.Role = "Guest of Honor"
 				}
@@ -128,7 +151,8 @@ func WatsonFromGuidebook(gb GuideBook) ([]WatsonSession, error) {
 			session.People = people
 		}
 
-		session.Tags = BuildSessionTags(session, v, gb)
+		session.Tags = BuildSessionTags(session, gs, gb)
+		session.Links = BuildSessionLinks(gs, gb)
 
 		watson = append(watson, session)
 	}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 )
 
 type conf struct {
@@ -15,6 +16,7 @@ type conf struct {
 	GuidebookID     string
 	Dump            bool
 	Debug           bool
+	SlowDown        time.Duration
 	TimeToGo        chan (bool)
 }
 
@@ -42,6 +44,10 @@ func init() {
 
 	flag.BoolVar(&config.Dump, "dump", false, "dumps the full contents we've loaded from GuideBook as JSON")
 	flag.Parse()
+
+	if !config.Dump {
+		log.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
+	}
 }
 
 func DumpJSON(v any) {
