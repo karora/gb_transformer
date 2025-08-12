@@ -71,7 +71,7 @@ func (ws *WatsonSession) BuildSessionTags(gs GuidebookSession, gb GuideBook) {
 
 	for _, st := range gs.ScheduleTracks {
 		ws.Tags = append(ws.Tags, makeTag(gb.Tracks[st], "track_"+gb.Tracks[st], "Track"))
-		if gb.Tracks[st] == "virtual" {
+		if strings.ToLower(gb.Tracks[st]) == "virtual" {
 			ws.virtual = true
 		}
 	}
@@ -97,19 +97,6 @@ func (ws *WatsonSession) BuildSessionLinks(gs GuidebookSession, gb GuideBook) {
 		ws.Links.Session = fmt.Sprintf("https://virtual.seattlein2025.org/deep-link/session?item_id=%d", ws.ID)
 	}
 	ws.Links.Chat = fmt.Sprintf("https://virtual.seattlein2025.org/deep-link/chat?item_id=%d", ws.ID)
-
-	// sessionLinks, exists := gb.SessionLinks[gs.ID]
-	// if !exists {
-	// 	return
-	// }
-	// for _, cl := range sessionLinks.TargetIDs {
-	// 	switch cl.TargetType {
-	// 	case GB_TARGET_TYPE_STREAM:
-	// 		if strings.HasPrefix(gb.WebViews[cl.TargetID].URL, "https://virtual.seattlein2025.org") {
-	// 			ws.Links.Session = gb.WebViews[cl.TargetID].URL
-	// 		}
-	// 	}
-	// }
 }
 
 // WatsonFromGuidebook converts everything from the Guidebook structure into an array of WatsonSession.
