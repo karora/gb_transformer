@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"regexp"
 	"sort"
@@ -170,4 +171,13 @@ func WatsonFromGuidebook(gb GuideBook) ([]WatsonSession, error) {
 	})
 
 	return watson, nil
+}
+
+func StreamingCSV(w io.Writer, sessions []WatsonSession) {
+	fmt.Fprintf(w, "%q,%q,%q\n", "Title", "StartTime", "StreamingURL")
+	for _, ws := range sessions {
+		if ws.virtual {
+			fmt.Fprintf(w, "%q,%q,%q\n", ws.Name, ws.StartTime, ws.Links.Session)
+		}
+	}
 }

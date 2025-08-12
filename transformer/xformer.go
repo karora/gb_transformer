@@ -11,7 +11,8 @@ import (
 )
 
 type conf struct {
-	OutputPath      string
+	SchedulePath    string
+	StreamPath      string
 	GuidebookAPIKey string
 	GuidebookID     string
 	Dump            bool
@@ -38,7 +39,8 @@ func getEnvWithDefault(key string, defaultValue string) string {
 
 func init() {
 	config.Debug = os.Getenv("XFORMER_DEBUG") == "true"
-	config.OutputPath = getEnvWithDefault("OUTPUT_PATH", "/opt/schedule.json")
+	config.SchedulePath = getEnvWithDefault("SCHEDULE_PATH", "/var/www/html/schedule.json")
+	config.StreamPath = getEnvWithDefault("STREAM_PATH", "/var/www/html/streaming.csv")
 	config.GuidebookAPIKey = getEnvWithDefault("GB_API_KEY", "not set")
 	config.GuidebookID = getEnvWithDefault("GB_ID", "not set")
 
@@ -47,6 +49,9 @@ func init() {
 
 	if !config.Dump {
 		log.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
+	}
+	if config.SchedulePath == config.StreamPath {
+		log.Fatal("SCHEDULE_PATH and STREAM_PATH must be set to different values.")
 	}
 }
 
@@ -82,6 +87,14 @@ func main() {
 		}
 
 		DumpJSON(watsonSessions)
+
+		f, err := os.OpenFile(config.StreamPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+		if err != nil {
+			log.Printf("Error opening file %q for writing streaming CSV: %s", config.StreamPath, err.Error())
+		} else {
+			StreamingCSV(f, watsonSessions)
+			f.Close()
+		}
 	}
 
 	// // When something is written into the config.TimeToGo channel we quit.
