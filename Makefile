@@ -32,7 +32,7 @@ release: production
 
 .PHONY: run
 run: xformer
-	mv schedule.json sched-old.json
+	mv schedule.json sched-old.json || true
 	time runxformer.sh >schedule.json
 
 .PHONY: dump

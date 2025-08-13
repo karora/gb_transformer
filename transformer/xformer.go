@@ -13,6 +13,8 @@ import (
 type conf struct {
 	SchedulePath    string
 	StreamPath      string
+	StreamLinksPath string
+	ChatLinksPath   string
 	GuidebookAPIKey string
 	GuidebookID     string
 	Dump            bool
@@ -41,6 +43,8 @@ func init() {
 	config.Debug = os.Getenv("XFORMER_DEBUG") == "true"
 	config.SchedulePath = getEnvWithDefault("SCHEDULE_PATH", "/var/www/html/schedule.json")
 	config.StreamPath = getEnvWithDefault("STREAM_PATH", "/var/www/html/streaming.csv")
+	config.StreamLinksPath = getEnvWithDefault("STREAM_LINKS_PATH", "/var/www/html/stream_links.csv")
+	config.ChatLinksPath = getEnvWithDefault("CHAT_LINKS_PATH", "/var/www/html/chat_links.csv")
 	config.GuidebookAPIKey = getEnvWithDefault("GB_API_KEY", "not set")
 	config.GuidebookID = getEnvWithDefault("GB_ID", "not set")
 
@@ -93,6 +97,21 @@ func main() {
 			log.Printf("Error opening file %q for writing streaming CSV: %s", config.StreamPath, err.Error())
 		} else {
 			StreamingCSV(f, watsonSessions)
+			f.Close()
+		}
+
+		f, err = os.OpenFile(config.ChatLinksPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+		if err != nil {
+			log.Printf("Error opening file %q for writing streaming CSV: %s", config.StreamPath, err.Error())
+		} else {
+			ChatLinksCSV(f, watsonSessions)
+			f.Close()
+		}
+		f, err = os.OpenFile(config.StreamLinksPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+		if err != nil {
+			log.Printf("Error opening file %q for writing streaming CSV: %s", config.StreamPath, err.Error())
+		} else {
+			StreamLinksCSV(f, watsonSessions)
 			f.Close()
 		}
 	}
