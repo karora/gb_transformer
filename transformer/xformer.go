@@ -15,9 +15,11 @@ type conf struct {
 	StreamPath      string
 	StreamLinksPath string
 	ChatLinksPath   string
+	ReplayLinksPath string
 	GuidebookAPIKey string
 	GuidebookID     string
 	Dump            bool
+	CSV             bool
 	Debug           bool
 	SlowDown        time.Duration
 	TimeToGo        chan (bool)
@@ -45,9 +47,11 @@ func init() {
 	config.StreamPath = getEnvWithDefault("STREAM_PATH", "/var/www/html/streaming.csv")
 	config.StreamLinksPath = getEnvWithDefault("STREAM_LINKS_PATH", "/var/www/html/stream_links.csv")
 	config.ChatLinksPath = getEnvWithDefault("CHAT_LINKS_PATH", "/var/www/html/chat_links.csv")
+	config.ReplayLinksPath = getEnvWithDefault("REPLAY_LINKS_PATH", "/var/www/html/replay_links.csv")
 	config.GuidebookAPIKey = getEnvWithDefault("GB_API_KEY", "not set")
 	config.GuidebookID = getEnvWithDefault("GB_ID", "not set")
 
+	flag.BoolVar(&config.CSV, "csv", false, "exports CSV files for stream, chat and replay links for loading into GuideBook")
 	flag.BoolVar(&config.Dump, "dump", false, "dumps the full contents we've loaded from GuideBook as JSON")
 	flag.Parse()
 
@@ -100,19 +104,28 @@ func main() {
 			f.Close()
 		}
 
-		f, err = os.OpenFile(config.ChatLinksPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
-		if err != nil {
-			log.Printf("Error opening file %q for writing streaming CSV: %s", config.StreamPath, err.Error())
-		} else {
-			ChatLinksCSV(f, watsonSessions)
-			f.Close()
-		}
-		f, err = os.OpenFile(config.StreamLinksPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
-		if err != nil {
-			log.Printf("Error opening file %q for writing streaming CSV: %s", config.StreamPath, err.Error())
-		} else {
-			StreamLinksCSV(f, watsonSessions)
-			f.Close()
+		if config.CSV {
+			f, err = os.OpenFile(config.ChatLinksPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+			if err != nil {
+				log.Printf("Error opening file %q for writing streaming CSV: %s", config.ChatLinksPath, err.Error())
+			} else {
+				ChatLinksCSV(f, watsonSessions)
+				f.Close()
+			}
+			f, err = os.OpenFile(config.StreamLinksPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+			if err != nil {
+				log.Printf("Error opening file %q for writing streaming CSV: %s", config.StreamLinksPath, err.Error())
+			} else {
+				StreamLinksCSV(f, watsonSessions)
+				f.Close()
+			}
+			f, err = os.OpenFile(config.ReplayLinksPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+			if err != nil {
+				log.Printf("Error opening file %q for writing streaming CSV: %s", config.ReplayLinksPath, err.Error())
+			} else {
+				ReplayLinksCSV(f, watsonSessions)
+				f.Close()
+			}
 		}
 	}
 
