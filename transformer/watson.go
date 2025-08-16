@@ -95,7 +95,11 @@ func (ws *WatsonSession) BuildSessionTags(gs GuidebookSession, gb GuideBook) {
 func (ws *WatsonSession) BuildSessionLinks(gs GuidebookSession, gb GuideBook) {
 	if ws.virtual && stream_session_ids[ws.ID] {
 		ws.Links.Session = fmt.Sprintf("https://virtual.seattlein2025.org/deep-link/session?item_id=%d", ws.ID)
-		ws.Links.Replay = fmt.Sprintf("https://virtual.seattlein2025.org/deep-link/replay?item_id=%d", ws.ID)
+		if !no_replay_titles[ws.Name] {
+			ws.Links.Replay = fmt.Sprintf("https://virtual.seattlein2025.org/deep-link/replay?item_id=%d", ws.ID)
+		} else {
+			delete(no_replay_titles, ws.Name)
+		}
 	}
 	ws.Links.Chat = fmt.Sprintf("https://virtual.seattlein2025.org/deep-link/chat?item_id=%d", ws.ID)
 }

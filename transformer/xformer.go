@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"time"
@@ -63,12 +64,12 @@ func init() {
 	}
 }
 
-func DumpJSON(v any) {
+func DumpJSON(f io.Writer, v any) {
 	jsonBytes, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	fmt.Println(string(jsonBytes))
+	fmt.Fprintln(f, string(jsonBytes))
 
 }
 
@@ -86,7 +87,7 @@ func main() {
 		log.Fatal(err.Error())
 	}
 	if config.Dump {
-		DumpJSON(guidebook)
+		DumpJSON(os.Stdout, guidebook)
 	} else {
 
 		watsonSessions, err := WatsonFromGuidebook(guidebook)
@@ -94,9 +95,15 @@ func main() {
 			log.Fatal(err.Error())
 		}
 
-		DumpJSON(watsonSessions)
+		f, err := os.OpenFile(config.SchedulePath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+		if err != nil {
+			log.Printf("Error opening file %q for writing streaming CSV: %s", config.StreamPath, err.Error())
+		} else {
+			DumpJSON(f, watsonSessions)
+			f.Close()
+		}
 
-		f, err := os.OpenFile(config.StreamPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+		f, err = os.OpenFile(config.StreamPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 		if err != nil {
 			log.Printf("Error opening file %q for writing streaming CSV: %s", config.StreamPath, err.Error())
 		} else {
@@ -125,6 +132,12 @@ func main() {
 			} else {
 				ReplayLinksCSV(f, watsonSessions)
 				f.Close()
+			}
+			if len(no_replay_titles) > 0 {
+				log.Printf("There were %d titles that were not found in the sessions:\n", len(no_replay_titles))
+				for title := range no_replay_titles {
+					log.Printf("\t%s\n", title)
+				}
 			}
 		}
 	}

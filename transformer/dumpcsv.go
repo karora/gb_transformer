@@ -53,6 +53,7 @@ func ChatLinksCSV(w io.Writer, sessions []WatsonSession) {
 // Ugly, but hey...
 var stream_session_ids map[int]bool
 var chat_session_ids map[int]bool
+var no_replay_titles map[string]bool
 
 func init() {
 	stream_sessions := []int{
@@ -1303,5 +1304,59 @@ func init() {
 	chat_session_ids = make(map[int]bool, len(chat_sessions))
 	for _, stream := range chat_sessions {
 		chat_session_ids[stream] = true
+	}
+
+	no_replay := []string{
+		"Fix-It Fic",
+		"Why Are Villains Queer-Coded?",
+		"Mythology and Authenticity in Fantasy",
+		"Cover Letter? Got It Covered!",
+		"Exploring Disability and Autonomy in Horror",
+		"Researching the Occult and the Paranormal",
+		"Interesting Energy for Future and Fiction",
+		"The Ecology of World-Building",
+		"Cartography in SFF",
+		"The Moral of a Story",
+		"Charting Series: How to Keep Them Fresh",
+		"Direct Sales Strategies for Indie Authors",
+		"It’s All About the Bones",
+		"Audiobooks 101: A How-To for Indie Authors and Rights Holders",
+		"Concert Star Cluster: Blind Lemming Chiffon, Griff the Filker, GregRobin Smith, and Molly Lewis",
+		"Realism as It Relates to Fear",
+		"Smile for the Camera!",
+		"Worldbuilding Through Geography and Environments",
+		"Writing Without Heroes and Villains",
+		"Was the Book Better Though? Horror Novels That Made Great Movies",
+		"First Contact Military Protocols",
+		"Workshops: The Good, the Bad, and the Ugly",
+		"Women of the Arthurian Legends",
+		"Ties That Bind, Break, and Heal—SFF Families",
+		"Trekking with the Stars",
+		"Arcane Principles: Philosophical Study of Magic",
+		"When Everything Has Rights",
+		"The History of Hanford",
+		"Worldbuilding Through Mythos, Magic, and Beliefs",
+		"Alternate Cognitions",
+		"Worldbuilding Through Structures of Society",
+		"Your Novel Became a Movie/Show. How Did It Go?",
+		"Evolution of Families",
+		"Newsletter Marketing for Indie Authors",
+		"Writing and Publishing in Different Genres",
+		"Making It Gay… or Trans, Neurodivergent, BIPOC, and More",
+		"The Radical Fiction of Joanna Russ",
+		"The Absent S: (Fem)Slash and Sapphics",
+		"Building an Author Business with Multiple Income Streams",
+		"Writing as an Act of Resistance",
+		"Survey of Medieval Armor and Weapons—More Than Europe Alone",
+		"Pitch Perfect: Developing a Solid Book Pitch",
+		"Sifting Through History",
+		"Ready, Steady, Flash!",
+		"Smut for Fun, Not Profit",
+		"The Reading Writer",
+		"Indie? Trad? Why Not Both?",
+	}
+	no_replay_titles = make(map[string]bool, len(no_replay))
+	for _, stream := range no_replay {
+		no_replay_titles[stream] = true
 	}
 }
